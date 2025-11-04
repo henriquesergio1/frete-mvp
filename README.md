@@ -1,21 +1,16 @@
 
-# Frete MVP — API + Docker (Corrigido)
+# Frete MVP — Standalone Docker (10.10.10.10)
 
-Este pacote contém a API FastAPI com cálculo de frete, auditoria, validação de cargas, e Docker pronto para deploy via **Portainer**. 
+Pacote pronto para rodar **em Docker Standalone** no host 10.10.10.10 (Portainer/CLI).
+A API conecta no SQL Server do Odin (10.10.10.100).
 
-**Correções incluídas**
-- `Dockerfile` ajustado para Debian 12 (bookworm), usando **keyring** da Microsoft (sem `apt-key`).
-- `docker-compose.yml` lendo variáveis via `env_file: .env` para evitar warnings no Portainer.
-- `.env` de exemplo na **raiz** do repositório.
+## Passos
+1) Execute `sql/01_init.sql` no SQL Server (Odin) para criar o FreteDB.
+2) Preencha `.env` com as strings de conexão.
+3) **GitHub**: suba este projeto (comandos abaixo).
+4) **Portainer** (endpoint Docker - NÃO Swarm): Stacks > Add stack (Git) apontando pro seu repo. Ou use CLI `docker compose up -d`.
 
-**Endpoints principais**
-- `GET /veiculos`, `GET /cargas`
-- `POST /fretes`, `GET /fretes`, `GET /fretes/{id}`, `PUT /fretes/{id}`, `DELETE /fretes/{id}`
-- `GET/POST/PUT /parametros/base` e `GET/POST/PUT /parametros/taxas`
+## URLs
+- Health: `http://10.10.10.10:8800/health`
+- Swagger: `http://10.10.10.10:8800/docs`
 
-**URLs após deploy**
-- Swagger: `http://10.10.10.100:8800/docs`
-- OpenAPI: `http://10.10.10.100:8800/openapi.json`
-
-**Banco**
-- Execute `sql/01_init.sql` no SQL Server para criar o schema `FreteDB` com tabelas, índices, triggers e view de pendências.

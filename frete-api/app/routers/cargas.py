@@ -6,7 +6,6 @@ router = APIRouter(prefix="/cargas", tags=["Cargas"])
 
 @router.get("")
 def listar_cargas(data: str = Query(..., description="YYYY-MM-DD"), cod_veiculo: int = Query(...)):
-    # Simplificação: usa sua query de Cargas filtrando por data e veículo
     cargas_sql = f"""
     SELECT
       PDD.NUMSEQETGPDD AS CARGA,
@@ -26,7 +25,6 @@ def listar_cargas(data: str = Query(..., description="YYYY-MM-DD"), cod_veiculo:
     """
     with db.erp_conn() as erp:
         cargas = db.query_all(erp, cargas_sql)
-    # Remover cargas já lançadas em frete ativo
     if not cargas:
         return []
     nums = [c['CARGA'] for c in cargas]

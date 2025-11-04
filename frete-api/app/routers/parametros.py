@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from .. import db
 
 router = APIRouter(prefix="/parametros", tags=["Parametros"])

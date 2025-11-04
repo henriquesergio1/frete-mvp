@@ -1,3 +1,6 @@
+
+-- Script completo do schema (tabelas/índices/triggers/view) do FreteDB
+-- Cole aqui o 01_init.sql enviado anteriormente. Mantido separado para execução no Odin (10.10.10.100).
 /* ========================================================================
    ETAPA 1 — BANCO DE DADOS DO FRETE (SQL SERVER)
    Recriação completa do schema para MVP de Frete

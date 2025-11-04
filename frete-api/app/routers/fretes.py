@@ -40,8 +40,9 @@ def obter_frete(id: int):
 
 @router.post("")
 def criar_frete(payload: FreteCreate):
-    # Carregar parametros base e taxas para cidades e tipo do frete
     cidades = list({c.cidade for c in payload.cargas})
+    if not cidades:
+        raise HTTPException(400, "Selecione ao menos uma carga")
     with db.frete_conn() as conn:
         base_rows = db.query_all(conn, f"SELECT cidade, tipo_veiculo, km, valor_base FROM dbo.parametros_base WHERE tipo_veiculo=? AND cidade IN ({','.join(['?']*len(cidades))}) AND ativo=1", [payload.tipo_veiculo, *cidades])
         taxas_rows = db.query_all(conn, f"SELECT cidade, tipo_veiculo, taxa_tipo, modalidade, valor FROM dbo.parametros_taxas WHERE tipo_veiculo=? AND cidade IN ({','.join(['?']*len(cidades))}) AND ativo=1", [payload.tipo_veiculo, *cidades])
@@ -52,22 +53,13 @@ def criar_frete(payload: FreteCreate):
         taxas_dict.setdefault(key, []).append({'taxa_tipo': r['taxa_tipo'], 'modalidade': r['modalidade'], 'valor': float(r['valor'])})
 
     cargas_list = [c.model_dump() for c in payload.cargas]
-
-    # Cidade base
     cidade_base_info = escolher_cidade_base(cargas_list, base_params, payload.tipo_veiculo)
-
-    # Taxas por rota
     valor_taxas = calcular_taxas_por_rota(cargas_list, payload.tipo_veiculo, base_params, taxas_dict)
-
-    # Overrides de taxas (somatório simples por agora)
     if payload.override_taxas:
         valor_taxas += sum([float(x.valor) for x in payload.override_taxas])
-
     valor_base = float(cidade_base_info['valor_base'])
 
-    # Inserir frete e cargas
     with db.frete_conn() as conn:
-        # Inserir cabeçalho
         db.execute(conn, """
             INSERT INTO dbo.frete_lancamento
             (data_frete, cod_veiculo, placa, cod_motorista, motorista, tipo_veiculo,
@@ -75,20 +67,16 @@ def criar_frete(payload: FreteCreate):
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, [payload.data_frete, payload.cod_veiculo, payload.placa, payload.cod_motorista, payload.motorista, payload.tipo_veiculo,
                cidade_base_info['cidade'], cidade_base_info['km'], valor_base, valor_taxas, payload.observacoes, payload.criado_por])
-        # Obter ID
         row = db.query_one(conn, "SELECT TOP 1 id FROM dbo.frete_lancamento WHERE cod_veiculo=? ORDER BY id DESC", [payload.cod_veiculo])
         frete_id = row['id']
 
-        # Preparar cargas com snapshots e validação de manual x ERP
         to_insert = []
         for c in cargas_list:
             origem = c.get('origem') or 'erp'
-            # validação ERP: se manual, checar veiculo
             pendencia = 0
             cod_veic_erp = None
             pend_motivo = None
             if origem == 'manual':
-                # Buscar veiculo real da carga no ERP
                 with db.erp_conn() as erp:
                     found = db.query_one(erp, "SELECT TOP 1 PDD.CODVEC AS COD_VEICULO FROM Flexx10071188.dbo.IBETPDDSVCNF_ PDD WHERE PDD.NUMSEQETGPDD = ?", [c['carga_num']])
                 if found:
@@ -96,11 +84,7 @@ def criar_frete(payload: FreteCreate):
                     if cod_veic_erp != payload.cod_veiculo:
                         pendencia = 1
                         pend_motivo = f"Carga pertence ao veículo {cod_veic_erp}, lançada no veículo {payload.cod_veiculo}."
-
-            # snapshots de base/taxas da cidade
             b = base_params[(c['cidade'], payload.tipo_veiculo)]
-            # calcular taxas para esta cidade isoladamente (para snapshot), reutilizando regras
-            from collections import defaultdict
             qtd = sum(1 for x in cargas_list if x['cidade'] == c['cidade'])
             total_taxa_cidade = 0.0
             for t in (taxas_dict.get((c['cidade'], payload.tipo_veiculo), [])):
@@ -110,7 +94,6 @@ def criar_frete(payload: FreteCreate):
                     total_taxa_cidade += t['valor'] * b['km']
                 elif t['modalidade'] == 'por_carga':
                     total_taxa_cidade += t['valor'] * qtd
-
             to_insert.append([
                 frete_id,
                 c['carga_num'],
@@ -132,9 +115,7 @@ def criar_frete(payload: FreteCreate):
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, to_insert)
 
-    # Auditoria (create)
     aud.registrar_auditoria(frete_id, 'create', motivo='Criacao de frete', antes=None, depois={"payload": payload.model_dump()}, feito_por=payload.criado_por)
-
     return {"id": frete_id, "valor_base": valor_base, "valor_taxas": valor_taxas, "valor_total": round(valor_base+valor_taxas,2)}
 
 @router.put("/{id}")
@@ -148,12 +129,9 @@ def atualizar_frete(id: int, payload: FreteUpdate):
         }
         if not antes["cab"]:
             raise HTTPException(404, "Frete não encontrado")
-
-    # Se houver alteração de cargas ou tipo, recalcular
     cab = antes["cab"]
     tipo_veic = payload.tipo_veiculo or cab['tipo_veiculo']
 
-    # Se cargas fornecidas, recalcula tudo
     if payload.cargas is not None:
         cidades = list({c.cidade for c in payload.cargas})
         with db.frete_conn() as conn:
@@ -172,7 +150,6 @@ def atualizar_frete(id: int, payload: FreteUpdate):
         valor_base = float(cidade_base_info['valor_base'])
 
     with db.frete_conn() as conn:
-        # Atualizar cabeçalho
         campos = []
         params = []
         for col, v in [
@@ -187,17 +164,11 @@ def atualizar_frete(id: int, payload: FreteUpdate):
             if v is not None:
                 campos.append(f"{col}=?")
                 params.append(v)
-
-        # Se recálculo feito
         if payload.cargas is not None:
             campos.extend(["cidade_base=?", "km_base=?", "valor_base=?", "valor_taxas=?"])
             params.extend([cidade_base_info['cidade'], cidade_base_info['km'], valor_base, valor_taxas])
-
         if campos:
-            params.append(id)
             db.execute(conn, f"UPDATE dbo.frete_lancamento SET {', '.join(campos)}, atualizado_em=SYSDATETIME(), atualizado_por=? WHERE id=?", params + [payload.atualizado_por, id])
-
-        # Atualizar cargas (se fornecidas)
         if payload.cargas is not None:
             db.execute(conn, "DELETE FROM dbo.frete_lancamento_carga WHERE frete_id=?", [id])
             to_insert = []
@@ -211,9 +182,10 @@ def atualizar_frete(id: int, payload: FreteUpdate):
                         found = db.query_one(erp, "SELECT TOP 1 PDD.CODVEC AS COD_VEICULO FROM Flexx10071188.dbo.IBETPDDSVCNF_ PDD WHERE PDD.NUMSEQETGPDD = ?", [c['carga_num']])
                     if found:
                         cod_veic_erp = int(found['COD_VEICULO'])
-                        if cod_veic_erp != (payload.cod_veiculo or cab['cod_veiculo']):
+                        alvo = payload.cod_veiculo or cab['cod_veiculo']
+                        if cod_veic_erp != alvo:
                             pendencia = 1
-                            pend_motivo = f"Carga pertence ao veículo {cod_veic_erp}, lançada no veículo {(payload.cod_veiculo or cab['cod_veiculo'])}."
+                            pend_motivo = f"Carga pertence ao veículo {cod_veic_erp}, lançada no veículo {alvo}."
                 b = base_params[(c['cidade'], tipo_veic)]
                 qtd = sum(1 for x in [x.model_dump() for x in payload.cargas] if x['cidade'] == c['cidade'])
                 total_taxa_cidade = 0.0
@@ -245,7 +217,6 @@ def atualizar_frete(id: int, payload: FreteUpdate):
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             """, to_insert)
 
-    # Auditoria (update)
     depois = obter_frete(id)
     aud.registrar_auditoria(id, 'update', payload.motivo, antes, depois, payload.atualizado_por)
     return {"ok": True}
@@ -263,6 +234,5 @@ def cancelar_frete(id: int, payload: FreteCancel):
             SET status='cancelado', cancelado_em=SYSDATETIME(), cancelado_por=?, cancelado_motivo=?
             WHERE id=?
         """, [payload.cancelado_por, payload.motivo, id])
-    # Auditoria (cancel)
     aud.registrar_auditoria(id, 'cancel', payload.motivo, antes=found, depois=None, feito_por=payload.cancelado_por)
     return {"ok": True}

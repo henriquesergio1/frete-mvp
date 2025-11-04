@@ -6,11 +6,10 @@ from contextlib import contextmanager
 ERP_CONN_STR = os.getenv('ERP_SQL_CONN')
 FRETE_CONN_STR = os.getenv('FRETE_SQL_CONN')
 
-if not ERP_CONN_STR or not FRETE_CONN_STR:
-    print("[WARN] Variáveis ERP_SQL_CONN e/ou FRETE_SQL_CONN não configuradas.")
-
 @contextmanager
 def erp_conn():
+    if not ERP_CONN_STR:
+        raise RuntimeError("ERP_SQL_CONN não configurado")
     conn = pyodbc.connect(ERP_CONN_STR)
     try:
         yield conn
@@ -19,6 +18,8 @@ def erp_conn():
 
 @contextmanager
 def frete_conn():
+    if not FRETE_CONN_STR:
+        raise RuntimeError("FRETE_SQL_CONN não configurado")
     conn = pyodbc.connect(FRETE_CONN_STR)
     try:
         yield conn
