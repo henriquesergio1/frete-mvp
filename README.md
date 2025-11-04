@@ -1,57 +1,21 @@
 
-# Frete MVP — API + Docker
+# Frete MVP — API + Docker (Corrigido)
 
-MVP de sistema de pagamento de frete para lançamento, edição, cancelamento com auditoria, e cálculo de valores baseado em **cidade + tipo de veículo** e **taxas por rota**.
+Este pacote contém a API FastAPI com cálculo de frete, auditoria, validação de cargas, e Docker pronto para deploy via **Portainer**. 
 
-## Arquitetura
-- API: **FastAPI**
-- Banco: **SQL Server** (FreteDB) — escrita
-- ERP: **SQL Server** (somente leitura)
-- Deploy: **Docker** (recomendado via Portainer no Odin `10.10.10.100`), expondo porta **8800**
+**Correções incluídas**
+- `Dockerfile` ajustado para Debian 12 (bookworm), usando **keyring** da Microsoft (sem `apt-key`).
+- `docker-compose.yml` lendo variáveis via `env_file: .env` para evitar warnings no Portainer.
+- `.env` de exemplo na **raiz** do repositório.
 
-## Pastas
-```
-frete-mvp/
-├─ frete-api/
-│  ├─ app/
-│  │  ├─ main.py
-│  │  ├─ db.py
-│  │  ├─ models.py
-│  │  ├─ schemas.py
-│  │  ├─ services/
-│  │  │  ├─ calc.py
-│  │  │  └─ audit.py
-│  │  └─ routers/
-│  │     ├─ veiculos.py
-│  │     ├─ cargas.py
-│  │     ├─ fretes.py
-│  │     └─ parametros.py
-│  ├─ Dockerfile
-│  ├─ requirements.txt
-│  └─ .env.example
-├─ docker-compose.yml
-├─ sql/
-│  └─ 01_init.sql
-└─ README.md
-```
+**Endpoints principais**
+- `GET /veiculos`, `GET /cargas`
+- `POST /fretes`, `GET /fretes`, `GET /fretes/{id}`, `PUT /fretes/{id}`, `DELETE /fretes/{id}`
+- `GET/POST/PUT /parametros/base` e `GET/POST/PUT /parametros/taxas`
 
-## Como subir (Portainer)
-1. Suba este repositório no GitHub.
-2. No Portainer (`10.10.10.10`), **Stacks > Add stack > Git repository**:
-   - Repository URL: `https://github.com/<sua-org>/<seu-repo>.git`
-   - Compose path: `docker-compose.yml`
-   - Branch: `main` (ou conforme seu repo)
-3. Defina as variáveis via **Env** ou use arquivo `.env` (veja `.env.example`).
-4. Deploy stack.
+**URLs após deploy**
+- Swagger: `http://10.10.10.100:8800/docs`
+- OpenAPI: `http://10.10.10.100:8800/openapi.json`
 
-Depois de subir:
-- API: `http://10.10.10.100:8800/docs` (Swagger)
-- OpenAPI para Custom Connector: `http://10.10.10.100:8800/openapi.json`
-
-## Banco de Dados
-Execute o script `sql/01_init.sql` no seu SQL Server para criar/zerar o schema `FreteDB` com tabelas, índices, triggers e view de pendências.
-
-## Notas
-- A instalação do **msodbcsql18** é feita no Dockerfile.
-- Conexões são lidas de `ERP_SQL_CONN` e `FRETE_SQL_CONN` (ODBC) via environment.
-- Esta API implementa o essencial para o MVP: lançamentos, edição, cancelamento com motivo e auditoria, validação de carga manual vs veículo do ERP, e cálculo de taxas por rota.
+**Banco**
+- Execute `sql/01_init.sql` no SQL Server para criar o schema `FreteDB` com tabelas, índices, triggers e view de pendências.

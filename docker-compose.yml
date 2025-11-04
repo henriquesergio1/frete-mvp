@@ -7,10 +7,10 @@ services:
     image: freteapi:latest
     container_name: freteapi
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - TZ=America/Sao_Paulo
       - API_PORT=8080
-      - ERP_SQL_CONN=${ERP_SQL_CONN}
-      - FRETE_SQL_CONN=${FRETE_SQL_CONN}
     ports:
       - "8800:8080"

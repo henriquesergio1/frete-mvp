@@ -4,7 +4,6 @@
    Compatível com: SQL Server 2017+
    ======================================================================== */
 
--- 1) (Opcional) Criar o Banco
 IF DB_ID('FreteDB') IS NULL
 BEGIN
     PRINT '>> Criando banco FreteDB...';
@@ -15,9 +14,6 @@ GO
 USE FreteDB;
 GO
 
-/* ========================================================================
-   LIMPEZA (DROPs) — rode apenas se realmente vai zerar o ambiente
-   ======================================================================== */
 IF OBJECT_ID('dbo.vw_pendencias_cargas', 'V') IS NOT NULL DROP VIEW dbo.vw_pendencias_cargas;
 GO
 
@@ -29,9 +25,6 @@ IF OBJECT_ID('dbo.parametros_base',             'U') IS NOT NULL DROP TABLE dbo.
 IF OBJECT_ID('dbo.versao_schema',               'U') IS NOT NULL DROP TABLE dbo.versao_schema;
 GO
 
-/* ========================================================================
-   2) Tabela de versão do schema (controle básico de migrações)
-   ======================================================================== */
 CREATE TABLE dbo.versao_schema (
     id           INT IDENTITY PRIMARY KEY,
     versao       VARCHAR(20)  NOT NULL,
@@ -43,9 +36,6 @@ INSERT INTO dbo.versao_schema (versao, descricao)
 VALUES ('1.0.0', N'Criação inicial do schema FreteDB');
 GO
 
-/* ========================================================================
-   3) Parâmetros (Base e Taxas)
-   ======================================================================== */
 CREATE TABLE dbo.parametros_base (
     id              INT IDENTITY PRIMARY KEY,
     cidade          NVARCHAR(120) NOT NULL,
@@ -75,9 +65,6 @@ CREATE INDEX IX_parametros_base_tipo   ON dbo.parametros_base (tipo_veiculo, cid
 CREATE INDEX IX_parametros_taxas_tipo  ON dbo.parametros_taxas (tipo_veiculo, cidade);
 GO
 
-/* ========================================================================
-   4) Lançamentos de Frete (cabeçalho e cargas)
-   ======================================================================== */
 CREATE TABLE dbo.frete_lancamento (
     id               INT IDENTITY PRIMARY KEY,
     data_frete       DATE          NOT NULL,
@@ -150,9 +137,6 @@ ON dbo.frete_lancamento_carga (carga_num)
 WHERE (ativo = 1);
 GO
 
-/* ========================================================================
-   5) Auditoria
-   ======================================================================== */
 CREATE TABLE dbo.frete_lancamento_auditoria (
     id           INT IDENTITY PRIMARY KEY,
     frete_id     INT            NOT NULL,
@@ -167,9 +151,6 @@ CREATE TABLE dbo.frete_lancamento_auditoria (
 CREATE INDEX IX_frete_auditoria_frete ON dbo.frete_lancamento_auditoria (frete_id, operacao, feito_em DESC);
 GO
 
-/* ========================================================================
-   6) TRIGGERS
-   ======================================================================== */
 CREATE OR ALTER TRIGGER dbo.trg_frete_status_sync_cargas
 ON dbo.frete_lancamento
 AFTER UPDATE
@@ -199,9 +180,6 @@ BEGIN
 END;
 GO
 
-/* ========================================================================
-   7) VIEW
-   ======================================================================== */
 CREATE VIEW dbo.vw_pendencias_cargas
 AS
 SELECT
@@ -224,9 +202,6 @@ WHERE c.pendencia = 1
   AND f.status = 'ativo';
 GO
 
-/* ========================================================================
-   8) SEEDS
-   ======================================================================== */
 INSERT INTO dbo.parametros_base (cidade, tipo_veiculo, km, valor_base) VALUES
 (N'Caçapava', N'Van',       18, 500.00),
 (N'Caçapava', N'Caminhão',  18, 800.00),
